@@ -94,7 +94,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 	@EventHandler(ignoreCancelled = true)
 	public void onBreak(BlockBreakEvent e){
 		Player player = e.getPlayer();
-		if(!player.isSneaking())
+		if(!player.isSneaking() && !always.contains(player.getUniqueId()))
 			return;
 
 		Block block = e.getBlock();
