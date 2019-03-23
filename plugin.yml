@@ -1,0 +1,13 @@
+name: HanbunBreaker
+main: amata1219.hanbun.breaker.HanbunBreaker
+version: 1.0.0
+api-version: 1.13
+author: amata1219(Twitter@amata1219)
+
+commands:
+  hanbun:
+    description: main command.
+    usage: /<command>
+    aliases: hb
+    permission: hanbun.breaker.hanbun
+    permission-message: You do not have permission.
