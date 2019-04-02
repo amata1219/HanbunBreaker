@@ -1,26 +1,24 @@
 package amata1219.hanbun.breaker;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.type.Slab;
+import org.bukkit.block.data.type.Slab.Type;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -30,20 +28,12 @@ import net.md_5.bungee.api.chat.TextComponent;
 public class HanbunBreaker extends JavaPlugin implements Listener {
 
 	private static HanbunBreaker plugin;
-	private static Method setData;
 
 	private HashSet<UUID> always = new HashSet<>();
 
 	@Override
 	public void onEnable(){
 		plugin = this;
-
-		String version = "v" + getServer().getClass().getPackage().getName().replaceFirst(".*(\\d+_\\d+_R\\d+).*", "$1");
-		try {
-			setData = Class.forName("org.bukkit.craftbukkit." + version + "block.CraftBlock").getMethod("setData", byte.class);
-		} catch (ClassNotFoundException | NoSuchMethodException | SecurityException e) {
-			e.printStackTrace();
-		}
 
 		saveDefaultConfig();
 
@@ -57,7 +47,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 	public void onDisable(){
 		HandlerList.unregisterAll((JavaPlugin) this);
 
-		getConfig().set("Always", always);
+		getConfig().set("Always", always.stream().map(UUID::toString).collect(Collectors.toList()));
 		saveConfig();
 	}
 
@@ -76,7 +66,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 		else
 			always.add(uuid);
 
-		player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "常時半分破壊機能を" + (contains ? "無効" : "有効") + "にしました。"));
+		player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "半分破壊機能を" + (contains ? "無効" : "有効") + "にしました。"));
 		return true;
 	}
 
@@ -84,37 +74,32 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 		return plugin;
 	}
 
-	@EventHandler
-	public void onInteract(PlayerInteractEvent e){
-		if(e.getAction() == Action.RIGHT_CLICK_BLOCK && e.getHand() == EquipmentSlot.HAND)
-			System.out.println(e.getClickedBlock().getType().toString());
-	}
-
-	@SuppressWarnings("deprecation")
 	@EventHandler(ignoreCancelled = true)
 	public void onBreak(BlockBreakEvent e){
 		Player player = e.getPlayer();
-		if(!player.isSneaking() && !always.contains(player.getUniqueId()))
+		if(!always.contains(player.getUniqueId()))
 			return;
 
 		Block block = e.getBlock();
-		if(!isDoubleSlabs(block))
+		BlockData data = block.getBlockData();
+		if(!(data instanceof Slab))
 			return;
 
-		block.setType(Material.valueOf(block.getType().toString().substring(14)));
+		Slab slab = (Slab) data;
+		if(slab.getType() != Type.DOUBLE)
+			return;
 
-		Location location = block.getLocation();
-		byte data = block.getData();
-		if(isUpper(player, location))
-			if(data < 8)
-				setData(block, data);
-			else
-				setData(block, (byte) (data - 8));
-		else
-			if(data < 8)
-				setData(block, (byte) (data + 8));
-			else
-				setData(block, data);
+		double distance = player.getLocation().distance(block.getLocation());
+		Location location = player.getEyeLocation();
+		double y =location.toVector().clone().add(location.getDirection().clone().multiply(distance)).getY();
+		/*for(double d = 0; d <= player.getLocation().distance(block.getLocation()); d += 0.1){
+
+		}*/
+
+		slab.setType(y - Double.valueOf(y) >= 0.5 ? Type.BOTTOM : Type.TOP);
+		block.setBlockData(slab);
+
+		e.setCancelled(true);
 
 		if(player.getGameMode() == GameMode.CREATIVE)
 			return;
@@ -122,20 +107,11 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 		Collection<ItemStack> drops = block.getDrops();
 		if(!drops.isEmpty()) for(ItemStack drop : drops){
 			drop.setAmount(1);
-			block.getWorld().dropItemNaturally(location.add(0.0, 0.1, 0.0), drop);
+			block.getWorld().dropItemNaturally(location.add(0.0, 0.6, 0.0), drop);
 			break;
 		}
 	}
 
-	public static boolean isDoubleSlabs(Block block){
-		String name = block.getType().toString();
-		return name.startsWith("LEGACY_DOUBLE_") && !name.endsWith("PLANT");
-	}
-
-	/*
-	 * player - 破壊者
-	 * block - ターゲット、isDoubleSlabs(block) == true であることが保証されなければならない
-	 */
 	public static boolean isUpper(Player player, Location blockLocation){
 		Location eye = player.getEyeLocation();
 		Location center = blockLocation.add(0.5, 0.5, 0.5);
@@ -150,14 +126,6 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 
 	public static double getLength(double x, double z){
 		return Math.sqrt(Math.pow(x, 2) + Math.pow(z, 2));
-	}
-
-	public static void setData(Block block, byte data){
-		try {
-			setData.invoke(block, data);
-		} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-			e.printStackTrace();
-		}
 	}
 
 }
