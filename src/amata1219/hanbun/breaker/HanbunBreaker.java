@@ -8,6 +8,7 @@ import java.util.stream.Collectors;
 import org.bukkit.ChatColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.type.Slab;
@@ -21,6 +22,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.util.Vector;
 
 import net.md_5.bungee.api.ChatMessageType;
 import net.md_5.bungee.api.chat.TextComponent;
@@ -37,7 +39,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 
 		saveDefaultConfig();
 
-		for(String key : getConfig().getStringList("Always"))
+		for(String key : getConfig().getStringList("Players"))
 			always.add(UUID.fromString(key));
 
 		getServer().getPluginManager().registerEvents(this, this);
@@ -47,7 +49,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 	public void onDisable(){
 		HandlerList.unregisterAll((JavaPlugin) this);
 
-		getConfig().set("Always", always.stream().map(UUID::toString).collect(Collectors.toList()));
+		getConfig().set("Players", always.stream().map(UUID::toString).collect(Collectors.toList()));
 		saveConfig();
 	}
 
@@ -89,43 +91,30 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 		if(slab.getType() != Type.DOUBLE)
 			return;
 
-		double distance = player.getLocation().distance(block.getLocation());
-		Location location = player.getEyeLocation();
-		double y =location.toVector().clone().add(location.getDirection().clone().multiply(distance)).getY();
-		/*for(double d = 0; d <= player.getLocation().distance(block.getLocation()); d += 0.1){
+		boolean creative = player.getGameMode() == GameMode.CREATIVE;
+		World world = block.getWorld();
+		Location eye = player.getEyeLocation();
+		Vector origin = eye.toVector(), direction = eye.getDirection();
+		for(double d = 0; d <= (creative ? 5 : 4); d += 0.1){
+			Location position = origin.clone().add(direction.clone().multiply(d)).toLocation(world);
+			Block find = world.getBlockAt(position);
+			if(!find.equals(block))
+				continue;
 
-		}*/
+			slab.setType(position.getY() - position.getBlockY() >= 0.5 ? Type.BOTTOM : Type.TOP);
+			block.setBlockData(slab);
 
-		slab.setType(y - Double.valueOf(y) >= 0.5 ? Type.BOTTOM : Type.TOP);
-		block.setBlockData(slab);
+			e.setCancelled(true);
 
-		e.setCancelled(true);
+			Collection<ItemStack> drops = block.getDrops();
+			if(creative && !drops.isEmpty()) for(ItemStack drop : drops){
+				drop.setAmount(1);
+				block.getWorld().dropItemNaturally(block.getLocation().add(0.0, 0.6, 0.0), drop);
+				break;
+			}
 
-		if(player.getGameMode() == GameMode.CREATIVE)
-			return;
-
-		Collection<ItemStack> drops = block.getDrops();
-		if(!drops.isEmpty()) for(ItemStack drop : drops){
-			drop.setAmount(1);
-			block.getWorld().dropItemNaturally(location.add(0.0, 0.6, 0.0), drop);
 			break;
 		}
-	}
-
-	public static boolean isUpper(Player player, Location blockLocation){
-		Location eye = player.getEyeLocation();
-		Location center = blockLocation.add(0.5, 0.5, 0.5);
-		double distance = eye.distance(center);
-		double y = eye.toVector().multiply(distance).getY();
-		return y - Double.valueOf(y).intValue() >= 0.5;
-	}
-
-	public static boolean isUpper(Player player, Block block){
-		return isUpper(player, block.getLocation());
-	}
-
-	public static double getLength(double x, double z){
-		return Math.sqrt(Math.pow(x, 2) + Math.pow(z, 2));
 	}
 
 }
