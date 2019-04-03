@@ -31,7 +31,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 
 	private static HanbunBreaker plugin;
 
-	private HashSet<UUID> always = new HashSet<>();
+	private HashSet<UUID> players = new HashSet<>();
 
 	@Override
 	public void onEnable(){
@@ -40,7 +40,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 		saveDefaultConfig();
 
 		for(String key : getConfig().getStringList("Players"))
-			always.add(UUID.fromString(key));
+			players.add(UUID.fromString(key));
 
 		getServer().getPluginManager().registerEvents(this, this);
 	}
@@ -49,7 +49,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 	public void onDisable(){
 		HandlerList.unregisterAll((JavaPlugin) this);
 
-		getConfig().set("Players", always.stream().map(UUID::toString).collect(Collectors.toList()));
+		getConfig().set("Players", players.stream().map(UUID::toString).collect(Collectors.toList()));
 		saveConfig();
 	}
 
@@ -62,11 +62,11 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 
 		Player player = (Player) sender;
 		UUID uuid = player.getUniqueId();
-		boolean contains = always.contains(uuid);
+		boolean contains = players.contains(uuid);
 		if(contains)
-			always.remove(uuid);
+			players.remove(uuid);
 		else
-			always.add(uuid);
+			players.add(uuid);
 
 		player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(ChatColor.GREEN + "半分破壊機能を" + (contains ? "無効" : "有効") + "にしました。"));
 		return true;
@@ -79,7 +79,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 	@EventHandler(ignoreCancelled = true)
 	public void onBreak(BlockBreakEvent e){
 		Player player = e.getPlayer();
-		if(!always.contains(player.getUniqueId()))
+		if(!players.contains(player.getUniqueId()))
 			return;
 
 		Block block = e.getBlock();
@@ -107,7 +107,7 @@ public class HanbunBreaker extends JavaPlugin implements Listener {
 			e.setCancelled(true);
 
 			Collection<ItemStack> drops = block.getDrops();
-			if(creative && !drops.isEmpty()) for(ItemStack drop : drops){
+			if(!creative && !drops.isEmpty()) for(ItemStack drop : drops){
 				drop.setAmount(1);
 				block.getWorld().dropItemNaturally(block.getLocation().add(0.0, 0.6, 0.0), drop);
 				break;
